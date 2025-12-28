@@ -299,9 +299,10 @@ export async function recordGameResult(discordId, gameType, state, betAmount = 0
 
 export async function getGameHistory(discordId, limit = 10) {
     const p = await getPool();
+    const safeLimit = parseInt(limit) || 10;
     const [rows] = await p.execute(
-        `SELECT * FROM game_sessions WHERE discord_id = ? AND state != 'active' ORDER BY ended_at DESC LIMIT ?`,
-        [discordId, limit]
+        `SELECT * FROM game_sessions WHERE discord_id = ? AND state != 'active' ORDER BY ended_at DESC LIMIT ${safeLimit}`,
+        [discordId]
     );
     return rows;
 }
@@ -327,7 +328,8 @@ export async function addXPTransaction(discordId, amount, source) {
 
 export async function getXPHistory(discordId, limit = 20) {
     const p = await getPool();
-    const [rows] = await p.execute('SELECT * FROM xp_transactions WHERE discord_id = ? ORDER BY created_at DESC LIMIT ?', [discordId, limit]);
+    const safeLimit = parseInt(limit) || 20;
+    const [rows] = await p.execute(`SELECT * FROM xp_transactions WHERE discord_id = ? ORDER BY created_at DESC LIMIT ${safeLimit}`, [discordId]);
     return rows;
 }
 
