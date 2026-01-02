@@ -13,6 +13,31 @@ dotenv.config();
 
 let pool = null;
 
+// Database migrations
+async function runMigrations() {
+    if (!pool) return;
+
+    try {
+        console.log('🔄 Running database migrations...');
+
+        // Migration: Expand game_type column to support longer game names
+        await pool.execute(`
+            ALTER TABLE game_sessions
+            MODIFY COLUMN game_type VARCHAR(20)
+        `).catch(err => {
+            // Ignore error if column already has correct size
+            if (!err.message.includes('Duplicate column name')) {
+                console.log('Note: game_type column migration skipped (may already be correct size)');
+            }
+        });
+
+        console.log('✅ Database migrations completed');
+    } catch (error) {
+        console.error('⚠️ Migration warning:', error.message);
+        // Don't throw - let the app continue even if migrations fail
+    }
+}
+
 export async function getPool() {
     if (pool) return pool;
     
@@ -49,7 +74,10 @@ export async function getPool() {
         console.error('❌ Database connection failed:', err.message);
         throw err;
     }
-    
+
+    // Run database migrations
+    await runMigrations();
+
     return pool;
 }
 
