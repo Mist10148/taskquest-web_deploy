@@ -7,6 +7,7 @@
 
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { getSkillBonuses, calculateFinalXP } from './gameLogic.js';
 
 dotenv.config();
 
@@ -295,6 +296,7 @@ export async function recordGameResult(discordId, gameType, state, betAmount = 0
         'INSERT INTO game_sessions (discord_id, game_type, bet_amount, state, payout, ended_at) VALUES (?, ?, ?, ?, ?, NOW())',
         [discordId, gameType, betAmount, state, payout]
     );
+    console.log(`Recorded game: ${gameType} for ${discordId}, state: ${state}, payout: ${payout}`);
 }
 
 export async function getGameHistory(discordId, limit = 10) {
@@ -304,6 +306,7 @@ export async function getGameHistory(discordId, limit = 10) {
         `SELECT * FROM game_sessions WHERE discord_id = ? AND state != 'active' ORDER BY ended_at DESC LIMIT ${safeLimit}`,
         [discordId]
     );
+    console.log(`Game history for ${discordId}: ${rows.length} games found`);
     return rows;
 }
 
@@ -339,6 +342,7 @@ export async function getXPHistory(discordId, limit = 20) {
 
 const DAILY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const DAILY_XP = 100;
+const STREAK_WINDOW_MS = 48 * 60 * 60 * 1000; // 48 hours to maintain streak
 
 export async function claimDaily(discordId) {
     const user = await getUser(discordId);
@@ -349,14 +353,79 @@ export async function claimDaily(discordId) {
     const timeSince = now - lastClaim;
     
     if (timeSince < DAILY_COOLDOWN_MS) {
-        return { success: false, error: 'Already claimed', remaining: DAILY_COOLDOWN_MS - timeSince };
+        return { 
+            success: false, 
+            error: 'Already claimed', 
+            remaining: DAILY_COOLDOWN_MS - timeSince,
+            streak: user.streak_count || 0
+        };
     }
     
-    const xpResult = await addXPTransaction(discordId, DAILY_XP, 'daily');
-    const p = await getPool();
-    await p.execute('UPDATE users SET last_daily_claim = NOW() WHERE discord_id = ?', [discordId]);
+    // Calculate streak
+    let newStreak;
+    let streakBroken = false;
     
-    return { success: true, xp: DAILY_XP, newBalance: xpResult.balanceAfter, newLevel: xpResult.newLevel };
+    if (!lastClaim) {
+        newStreak = 1;
+    } else if (timeSince <= STREAK_WINDOW_MS) {
+        newStreak = (user.streak_count || 0) + 1;
+    } else {
+        newStreak = 1;
+        streakBroken = user.streak_count > 1;
+    }
+    
+    // Calculate streak bonus (5 XP per streak day, max +50)
+    const streakBonus = Math.min((newStreak - 1) * 5, 50);
+    
+    // Get user skills
+    const userSkills = await getUserSkills(discordId);
+    
+    // Apply class and skill bonuses to base daily XP
+    let classBonus = 0;
+    let bonusInfo = { type: null, details: '' };
+    let userUpdates = {};
+    
+    if (user.gamification_enabled) {
+        const result = calculateFinalXP(user, userSkills, DAILY_XP);
+        classBonus = result.finalXP - DAILY_XP; // The extra XP from class/skill
+        bonusInfo = result.bonusInfo;
+        userUpdates = result.userUpdates;
+    }
+    
+    // Get skill daily bonus (Early Bird adds +10 daily XP per level)
+    const skillBonuses = getSkillBonuses(userSkills);
+    const skillDailyBonus = skillBonuses.dailyBonus || 0;
+    
+    // Calculate total XP: base + class bonus + streak + skill daily bonus
+    const totalXP = DAILY_XP + classBonus + streakBonus + skillDailyBonus;
+    
+    const xpResult = await addXPTransaction(discordId, totalXP, 'daily');
+    
+    // Update class counters and streak
+    const p = await getPool();
+    await p.execute(
+        'UPDATE users SET last_daily_claim = NOW(), streak_count = ? WHERE discord_id = ?', 
+        [newStreak, discordId]
+    );
+    
+    // Update class-specific counters
+    if (Object.keys(userUpdates).length > 0) {
+        await updateUser(discordId, userUpdates);
+    }
+    
+    return { 
+        success: true, 
+        baseXP: DAILY_XP,
+        classBonus,
+        streakBonus,
+        skillDailyBonus,
+        totalXP,
+        bonusInfo,
+        streak: newStreak,
+        streakBroken,
+        newBalance: xpResult.balanceAfter, 
+        newLevel: xpResult.newLevel 
+    };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

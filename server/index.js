@@ -8,8 +8,14 @@ import express from 'express';
 import cors from 'cors';
 import session from 'express-session';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import db from './db.js';
 import { CLASSES, SKILL_TREES, ACHIEVEMENTS, checkAchievements } from './gameData.js';
+import { calculateFinalXP } from './gameLogic.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -280,9 +286,10 @@ app.get('/api/lists', requireAuth, async (req, res) => {
 // Create list
 app.post('/api/lists', requireAuth, async (req, res) => {
     try {
+        const discordId = req.session.user.discordId;
         const { name, description, category, priority, deadline } = req.body;
         const list = await db.createList(
-            req.session.user.discordId,
+            discordId,
             name,
             description || null,
             category || null,
@@ -290,10 +297,30 @@ app.post('/api/lists', requireAuth, async (req, res) => {
             deadline || null
         );
         
-        // Check for new achievements
-        const newAchievements = await checkAndUnlockAchievements(req.session.user.discordId);
+        let xpResult = null;
         
-        res.json({ ...list, newAchievements });
+        // Award XP for creating a list (with class and skill bonuses)
+        const user = await db.getUser(discordId);
+        if (user && user.gamification_enabled) {
+            const userSkills = await db.getUserSkills(discordId);
+            const baseXP = 10; // Base XP for creating a list
+            
+            const { finalXP, bonusInfo, userUpdates } = calculateFinalXP(user, userSkills, baseXP);
+            
+            xpResult = await db.addXPTransaction(discordId, finalXP, 'list_create');
+            xpResult.finalXP = finalXP;
+            xpResult.baseXP = baseXP;
+            xpResult.bonusInfo = bonusInfo;
+            
+            if (Object.keys(userUpdates).length > 0) {
+                await db.updateUser(discordId, userUpdates);
+            }
+        }
+        
+        // Check for new achievements
+        const newAchievements = await checkAndUnlockAchievements(discordId);
+        
+        res.json({ ...list, newAchievements, xpResult });
     } catch (error) {
         console.error('Create list error:', error);
         res.status(500).json({ error: 'Failed to create list' });
@@ -349,17 +376,39 @@ app.delete('/api/lists/:id', requireAuth, async (req, res) => {
 // Add item to list
 app.post('/api/lists/:listId/items', requireAuth, async (req, res) => {
     try {
+        const discordId = req.session.user.discordId;
+        
         // Verify list belongs to user
-        const list = await db.getListById(req.params.listId, req.session.user.discordId);
+        const list = await db.getListById(req.params.listId, discordId);
         if (!list) return res.status(404).json({ error: 'List not found' });
         
         const { name, description } = req.body;
         const item = await db.createItem(list.id, name, description || null);
         
-        // Check for new achievements
-        const newAchievements = await checkAndUnlockAchievements(req.session.user.discordId);
+        let xpResult = null;
         
-        res.json({ ...item, newAchievements });
+        // Award XP for creating an item (with class and skill bonuses)
+        const user = await db.getUser(discordId);
+        if (user && user.gamification_enabled) {
+            const userSkills = await db.getUserSkills(discordId);
+            const baseXP = 5; // Base XP for creating an item
+            
+            const { finalXP, bonusInfo, userUpdates } = calculateFinalXP(user, userSkills, baseXP);
+            
+            xpResult = await db.addXPTransaction(discordId, finalXP, 'item_create');
+            xpResult.finalXP = finalXP;
+            xpResult.baseXP = baseXP;
+            xpResult.bonusInfo = bonusInfo;
+            
+            if (Object.keys(userUpdates).length > 0) {
+                await db.updateUser(discordId, userUpdates);
+            }
+        }
+        
+        // Check for new achievements
+        const newAchievements = await checkAndUnlockAchievements(discordId);
+        
+        res.json({ ...item, newAchievements, xpResult });
     } catch (error) {
         res.status(500).json({ error: 'Failed to create item' });
     }
@@ -385,18 +434,41 @@ app.patch('/api/items/:id', requireAuth, async (req, res) => {
 // Toggle item complete
 app.patch('/api/items/:id/toggle', requireAuth, async (req, res) => {
     try {
-        const item = await db.toggleItemComplete(req.params.id, req.session.user.discordId);
+        const discordId = req.session.user.discordId;
+        const item = await db.toggleItemComplete(req.params.id, discordId);
         
-        // Award XP if completed
+        let xpResult = null;
+        
+        // Award XP if completed (with class and skill bonuses)
         if (item && item.completed) {
-            await db.addXPTransaction(req.session.user.discordId, 10, 'task_complete', item.id);
+            const user = await db.getUser(discordId);
+            
+            if (user && user.gamification_enabled) {
+                const userSkills = await db.getUserSkills(discordId);
+                const baseXP = 10; // Base XP for completing a task
+                
+                // Calculate final XP with class and skill bonuses
+                const { finalXP, bonusInfo, userUpdates } = calculateFinalXP(user, userSkills, baseXP);
+                
+                // Add XP transaction
+                xpResult = await db.addXPTransaction(discordId, finalXP, 'task_complete', item.id);
+                xpResult.finalXP = finalXP;
+                xpResult.baseXP = baseXP;
+                xpResult.bonusInfo = bonusInfo;
+                
+                // Update class-specific counters (assassin_streak, wizard_counter, etc.)
+                if (Object.keys(userUpdates).length > 0) {
+                    await db.updateUser(discordId, userUpdates);
+                }
+            }
         }
         
         // Check for new achievements
-        const newAchievements = await checkAndUnlockAchievements(req.session.user.discordId);
+        const newAchievements = await checkAndUnlockAchievements(discordId);
         
-        res.json({ ...item, newAchievements });
+        res.json({ ...item, newAchievements, xpResult });
     } catch (error) {
+        console.error('Toggle item error:', error);
         res.status(500).json({ error: 'Failed to toggle item' });
     }
 });
@@ -511,10 +583,12 @@ app.get('/api/skills', requireAuth, async (req, res) => {
         // Create skill map for easy lookup
         const skillMap = new Map(userSkills.map(s => [s.skill_id, s.skill_level]));
         
-        // Add user's skill levels to skill trees
+        // Add user's skill levels and class ownership to skill trees
         const treesWithProgress = Object.entries(SKILL_TREES).map(([classKey, tree]) => ({
             classKey,
             ...tree,
+            // DEFAULT is always owned, other classes check owns_xxx field
+            classOwned: classKey === 'DEFAULT' || user[`owns_${classKey.toLowerCase()}`] === 1,
             skills: Object.entries(tree.skills).map(([skillId, skill]) => ({
                 id: skillId,
                 ...skill,
@@ -525,7 +599,8 @@ app.get('/api/skills', requireAuth, async (req, res) => {
         res.json({
             skillTrees: treesWithProgress,
             skillPoints: user.skill_points || 0,
-            userXP: user.player_xp
+            userXP: user.player_xp,
+            playerClass: user.player_class
         });
     } catch (error) {
         res.status(500).json({ error: 'Failed to get skills' });
@@ -543,6 +618,14 @@ app.post('/api/skills/:skillId/unlock', requireAuth, async (req, res) => {
         
         if (!tree || !tree.skills[skillId]) {
             return res.status(404).json({ error: 'Skill not found' });
+        }
+        
+        // CLASS-LOCKING: Only allow DEFAULT skills for everyone, or class-specific skills if owned
+        if (classKey !== 'DEFAULT') {
+            const ownsClass = user[`owns_${classKey.toLowerCase()}`];
+            if (!ownsClass) {
+                return res.status(403).json({ error: `You must own the ${classKey} class to unlock this skill` });
+            }
         }
         
         const skill = tree.skills[skillId];
@@ -662,52 +745,124 @@ app.get('/api/games/history', requireAuth, async (req, res) => {
 app.post('/api/games/result', requireAuth, async (req, res) => {
     try {
         const { gameType, result, bet, payout } = req.body;
-        
-        // Record the game with bet amount
-        await db.recordGameResult(req.session.user.discordId, gameType, result, bet, payout);
-        
+        const discordId = req.session.user.discordId;
+
+        console.log(`Recording game: ${gameType}, result: ${result}, bet: ${bet}, payout: ${payout}`);
+
         // Process XP change based on game type
         let xpChange = 0;
+        let bonusInfo = null;
+
+        // Get user and skills for bonus calculation
+        const user = await db.getUser(discordId);
+        const userSkills = await db.getUserSkills(discordId);
         
-        if (gameType === 'rps') {
+        // Free arcade games (no bet, payout = base XP earned)
+        if (['snake', 'dino', 'invaders'].includes(gameType)) {
+            if (result === 'won' && payout >= 0) {  // Changed > to >= to handle 0-score games
+                const baseXP = payout; // payout IS the XP for free games
+
+                if (user && user.gamification_enabled && baseXP > 0) {
+                    const { finalXP, bonusInfo: info, userUpdates } = calculateFinalXP(user, userSkills, baseXP);
+                    xpChange = finalXP;
+                    bonusInfo = info;
+                    await db.addXPTransaction(discordId, xpChange, 'game_reward');
+                    if (Object.keys(userUpdates).length > 0) {
+                        await db.updateUser(discordId, userUpdates);
+                    }
+                } else {
+                    xpChange = baseXP;
+                    if (baseXP > 0) {
+                        await db.addXPTransaction(discordId, xpChange, 'game_reward');
+                    }
+                }
+            }
+            // Record free game (bet=0, payout=xpChange for history display)
+            await db.recordGameResult(discordId, gameType, result, 0, xpChange);
+        } else if (gameType === 'rps') {
             // RPS is risk-free - only gain XP on win, never lose
             if (result === 'won') {
-                xpChange = bet; // Win pays 1x
-                await db.addXPTransaction(req.session.user.discordId, xpChange, 'game_reward');
+                const baseXP = bet; // Win pays 1x
+                
+                if (user && user.gamification_enabled) {
+                    const { finalXP, bonusInfo: info, userUpdates } = calculateFinalXP(user, userSkills, baseXP);
+                    xpChange = finalXP;
+                    bonusInfo = info;
+                    await db.addXPTransaction(discordId, xpChange, 'game_reward');
+                    if (Object.keys(userUpdates).length > 0) {
+                        await db.updateUser(discordId, userUpdates);
+                    }
+                } else {
+                    xpChange = baseXP;
+                    await db.addXPTransaction(discordId, xpChange, 'game_reward');
+                }
             }
-            // Loss and push = no XP change
+            // Record RPS game
+            const displayPayout = result === 'won' ? bet + xpChange : (result === 'push' ? bet : 0);
+            await db.recordGameResult(discordId, gameType, result, bet, displayPayout);
         } else if (gameType === 'hangman') {
-            // Hangman: win = payout, lose = -bet (entry fee)
+            // Hangman: win = payout with bonuses, lose = -bet (no bonuses on loss)
             if (result === 'won') {
-                xpChange = payout - bet;
-                await db.addXPTransaction(req.session.user.discordId, xpChange, 'game_reward');
+                const baseXP = payout - bet;
+                
+                if (user && user.gamification_enabled && baseXP > 0) {
+                    const { finalXP, bonusInfo: info, userUpdates } = calculateFinalXP(user, userSkills, baseXP);
+                    xpChange = finalXP;
+                    bonusInfo = info;
+                    await db.addXPTransaction(discordId, xpChange, 'game_reward');
+                    if (Object.keys(userUpdates).length > 0) {
+                        await db.updateUser(discordId, userUpdates);
+                    }
+                } else {
+                    xpChange = baseXP;
+                    if (baseXP !== 0) await db.addXPTransaction(discordId, xpChange, 'game_reward');
+                }
             } else if (result === 'lost') {
                 xpChange = -bet;
-                await db.addXPTransaction(req.session.user.discordId, xpChange, 'game_reward');
+                await db.addXPTransaction(discordId, xpChange, 'game_reward');
             }
+            // Record hangman game
+            const displayPayout = result === 'won' ? bet + xpChange : 0;
+            await db.recordGameResult(discordId, gameType, result, bet, displayPayout);
         } else {
             // Blackjack and other betting games
             if (result === 'won' || result === 'blackjack') {
-                xpChange = payout - bet;
-                await db.addXPTransaction(req.session.user.discordId, xpChange, 'game_reward');
+                const baseXP = payout - bet;
+                
+                if (user && user.gamification_enabled && baseXP > 0) {
+                    const { finalXP, bonusInfo: info, userUpdates } = calculateFinalXP(user, userSkills, baseXP);
+                    xpChange = finalXP;
+                    bonusInfo = info;
+                    await db.addXPTransaction(discordId, xpChange, 'game_reward');
+                    if (Object.keys(userUpdates).length > 0) {
+                        await db.updateUser(discordId, userUpdates);
+                    }
+                } else {
+                    xpChange = baseXP;
+                    if (baseXP !== 0) await db.addXPTransaction(discordId, xpChange, 'game_reward');
+                }
             } else if (result === 'lost') {
                 xpChange = -bet;
-                await db.addXPTransaction(req.session.user.discordId, xpChange, 'game_reward');
+                await db.addXPTransaction(discordId, xpChange, 'game_reward');
             }
-            // Push = no change
+            // Record betting game
+            const displayPayout = result === 'push' ? bet : (xpChange >= 0 ? bet + xpChange : 0);
+            await db.recordGameResult(discordId, gameType, result, bet, displayPayout);
         }
         
         // Check for XP/Level achievements
-        const newAchievements = await checkAndUnlockAchievements(req.session.user.discordId);
+        const newAchievements = await checkAndUnlockAchievements(discordId);
         
-        const user = await db.getUser(req.session.user.discordId);
+        const updatedUser = await db.getUser(discordId);
         res.json({ 
             success: true, 
             xpChange,
-            newBalance: user.player_xp,
+            bonusInfo,
+            newBalance: updatedUser.player_xp,
             newAchievements
         });
     } catch (error) {
+        console.error('Record game error:', error);
         res.status(500).json({ error: 'Failed to record game' });
     }
 });
@@ -740,6 +895,22 @@ app.get('/api/data/skills', (req, res) => {
 app.get('/api/data/achievements', (req, res) => {
     res.json(ACHIEVEMENTS);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SERVE FRONTEND (Production)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+if (process.env.NODE_ENV === 'production') {
+    // Serve static files from the dist folder
+    app.use(express.static(path.join(__dirname, '../dist')));
+    
+    // Handle React routing - serve index.html for non-API routes
+    app.get('*', (req, res) => {
+        if (!req.path.startsWith('/api')) {
+            res.sendFile(path.join(__dirname, '../dist/index.html'));
+        }
+    });
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  START SERVER
