@@ -91,21 +91,21 @@ const GameInstructions = ({ game }: { game: 'blackjack' | 'rps' | 'hangman' | 's
       "💀 Lose all lives = lose entry fee"
     ],
     snake: [
-      "🐍 Use arrow keys or WASD to move",
+      "🐍 Swipe to move (or use arrow keys/WASD)",
       "🍎 Eat pellets to grow and earn XP",
       "💀 Don't hit walls or yourself!",
       "🎁 XP = Pellets eaten × 2"
     ],
     dino: [
-      "🦖 Press SPACE or click to jump",
+      "🦖 Tap screen or press SPACE to jump",
       "🌵 Avoid cacti and birds!",
       "🏆 Score +1 for each obstacle passed",
       "🎁 XP = Obstacles Passed"
     ],
     invaders: [
-      "🚀 Arrow keys or A/D to move",
-      "🔫 SPACE to shoot",
+      "🚀 Tap left/right to move & shoot",
       "👾 Destroy all aliens before they reach you!",
+      "🏆 Desktop: Arrow keys/WASD + SPACE",
       "🎁 XP = Aliens destroyed × 3"
     ]
   };
@@ -534,7 +534,7 @@ const SnakeGame = ({ onBack, onResult }: { onBack: () => void; onResult: (r: str
 
   useEffect(() => {
     if (gameState !== "playing") return;
-    
+
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -547,7 +547,35 @@ const SnakeGame = ({ onBack, onResult }: { onBack: () => void; onResult: (r: str
       else if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") { if (g.lastDir.x !== 1) g.dir = { x: -1, y: 0 }; }
       else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") { if (g.lastDir.x !== -1) g.dir = { x: 1, y: 0 }; }
     };
+
+    // Mobile touch controls (swipe)
+    let touchStartX = 0;
+    let touchStartY = 0;
+    const handleTouchStart = (e: TouchEvent) => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      const diffX = touchEndX - touchStartX;
+      const diffY = touchEndY - touchStartY;
+      const g = gameRef.current;
+
+      if (Math.abs(diffX) > Math.abs(diffY)) {
+        // Horizontal swipe
+        if (diffX > 30 && g.lastDir.x !== -1) g.dir = { x: 1, y: 0 }; // Right
+        else if (diffX < -30 && g.lastDir.x !== 1) g.dir = { x: -1, y: 0 }; // Left
+      } else {
+        // Vertical swipe
+        if (diffY > 30 && g.lastDir.y !== -1) g.dir = { x: 0, y: 1 }; // Down
+        else if (diffY < -30 && g.lastDir.y !== 1) g.dir = { x: 0, y: -1 }; // Up
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
+    canvas.addEventListener("touchstart", handleTouchStart);
+    canvas.addEventListener("touchend", handleTouchEnd);
 
     const gameLoop = setInterval(() => {
       const g = gameRef.current;
@@ -627,6 +655,8 @@ const SnakeGame = ({ onBack, onResult }: { onBack: () => void; onResult: (r: str
     return () => {
       clearInterval(gameLoop);
       window.removeEventListener("keydown", handleKeyDown);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchend", handleTouchEnd);
     };
   }, [gameState, endGame]);
 
@@ -1054,7 +1084,7 @@ const DinoGame = ({ onBack, onResult }: { onBack: () => void; onResult: (r: stri
                 onClick={jump}
                 className="rounded-lg border border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.2)] cursor-pointer"
               />
-              <p className="text-center text-xs text-foreground-muted mt-2">Click or press SPACE to jump</p>
+              <p className="text-center text-xs text-foreground-muted mt-2">Tap screen or press SPACE to jump</p>
             </div>
           )}
           
@@ -1165,9 +1195,40 @@ const SpaceInvadersGame = ({ onBack, onResult }: { onBack: () => void; onResult:
       if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") g.keys.left = false;
       if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") g.keys.right = false;
     };
-    
+
+    // Mobile touch controls
+    const handleTouchStart = (e: TouchEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const touchX = e.touches[0].clientX - rect.left;
+      const g = gameRef.current;
+
+      // Tap to shoot
+      const now = Date.now();
+      if (now - g.lastShot > 250) {
+        g.bullets.push({ x: g.player.x + 15, y: g.player.y });
+        g.lastShot = now;
+      }
+
+      // Left/right movement based on tap position
+      if (touchX < canvas.width / 2) {
+        g.keys.left = true;
+        g.keys.right = false;
+      } else {
+        g.keys.right = true;
+        g.keys.left = false;
+      }
+    };
+
+    const handleTouchEnd = () => {
+      const g = gameRef.current;
+      g.keys.left = false;
+      g.keys.right = false;
+    };
+
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
+    canvas.addEventListener("touchstart", handleTouchStart);
+    canvas.addEventListener("touchend", handleTouchEnd);
 
     const gameLoop = setInterval(() => {
       const g = gameRef.current;
@@ -1278,6 +1339,8 @@ const SpaceInvadersGame = ({ onBack, onResult }: { onBack: () => void; onResult:
       clearInterval(gameLoop);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchend", handleTouchEnd);
     };
   }, [gameState, endGame]);
 
@@ -1325,7 +1388,7 @@ const SpaceInvadersGame = ({ onBack, onResult }: { onBack: () => void; onResult:
                 height={400}
                 className="rounded-lg border border-purple-500/30 shadow-[0_0_30px_rgba(168,85,247,0.2)]"
               />
-              <p className="text-center text-xs text-foreground-muted mt-2">Arrow keys/WASD to move, SPACE to shoot</p>
+              <p className="text-center text-xs text-foreground-muted mt-2">Tap left/right to move & shoot • Arrow keys/WASD + SPACE on desktop</p>
             </div>
           )}
           
