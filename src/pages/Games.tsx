@@ -417,14 +417,19 @@ const HangmanGame = ({ onBack, bet, onResult }: { onBack: () => void; bet: numbe
           <div className="text-center mb-6">
             <div className="flex justify-center gap-2 text-3xl font-mono">
               {word.split("").map((c, i) => (
-                <motion.span 
-                  key={i} 
+                <motion.span
+                  key={i}
                   initial={guessed.includes(c) ? { scale: 1.2 } : {}}
                   animate={{ scale: 1 }}
                   className={cn(
-                    "w-8 h-12 border-b-3 flex items-center justify-center font-bold",
-                    guessed.includes(c) ? "text-cyan-400 border-cyan-500" : "border-foreground-muted"
+                    "w-8 h-12 flex items-center justify-center font-bold relative",
+                    guessed.includes(c) ? "text-cyan-400" : ""
                   )}
+                  style={{
+                    borderBottom: guessed.includes(c)
+                      ? '3px solid rgb(6, 182, 212)'
+                      : '3px dashed rgb(148, 163, 184)'
+                  }}
                 >
                   {guessed.includes(c) ? c : ""}
                 </motion.span>
