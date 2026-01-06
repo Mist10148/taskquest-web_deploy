@@ -46,7 +46,7 @@ export const authApi = {
 export const userApi = {
     getProfile: () => apiFetch<UserStats>('/api/user'),
     
-    updateSettings: (settings: { gamification_enabled?: boolean; automation_enabled?: boolean }) =>
+    updateSettings: (settings: { gamification_enabled?: boolean; automation_enabled?: boolean; auto_delete_old_lists?: boolean }) =>
         apiFetch<User>('/api/user', { method: 'PATCH', body: JSON.stringify(settings) }),
     
     claimDaily: () => apiFetch<DailyClaimResult>('/api/user/daily', { method: 'POST' }),
@@ -169,6 +169,7 @@ export interface User {
     skill_points: number;
     gamification_enabled: boolean;
     automation_enabled: boolean;
+    auto_delete_old_lists: boolean;
     streak_count: number;
     last_daily_claim: string | null;
     owns_hero: boolean;
