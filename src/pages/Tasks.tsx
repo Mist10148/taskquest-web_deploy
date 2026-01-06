@@ -62,7 +62,7 @@ const Tasks = () => {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [activeTab, setActiveTab] = useState<"current" | "expired" | "completed">("current");
+  const [activeTab, setActiveTab] = useState<"all" | "current" | "expired" | "completed">("all");
   const [sortBy, setSortBy] = useState("newest");
   
   // Create list state
@@ -115,6 +115,8 @@ const Tasks = () => {
       return statusFilter === 'completed' ? isComplete : !isComplete;
     })
     .filter(list => {
+      if (activeTab === 'all') return true;
+
       const isComplete = list.itemsTotal > 0 && list.itemsCompleted === list.itemsTotal;
       const now = new Date();
       const isExpired = list.deadline && new Date(list.deadline) < now && !isComplete;
@@ -595,6 +597,18 @@ const Tasks = () => {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 p-1 bg-background-secondary rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab("all")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
+              activeTab === "all"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-foreground-muted hover:text-foreground hover:bg-card/50"
+            )}
+          >
+            <Scroll className="h-4 w-4" />
+            All
+          </button>
           <button
             onClick={() => setActiveTab("current")}
             className={cn(
