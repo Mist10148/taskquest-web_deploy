@@ -215,12 +215,13 @@ app.get('/api/user', requireAuth, async (req, res) => {
 // Update user settings
 app.patch('/api/user', requireAuth, async (req, res) => {
     try {
-        const { gamification_enabled, automation_enabled } = req.body;
+        const { gamification_enabled, automation_enabled, auto_delete_old_lists } = req.body;
         const updates = {};
-        
+
         if (gamification_enabled !== undefined) updates.gamification_enabled = gamification_enabled;
         if (automation_enabled !== undefined) updates.automation_enabled = automation_enabled;
-        
+        if (auto_delete_old_lists !== undefined) updates.auto_delete_old_lists = auto_delete_old_lists;
+
         const user = await db.updateUser(req.session.user.discordId, updates);
         res.json(user);
     } catch (error) {
