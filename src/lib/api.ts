@@ -347,9 +347,19 @@ export interface XPTransaction {
 export interface DailyClaimResult {
     success: boolean;
     error?: string;
-    xp?: number;
+    baseXP?: number;
+    classBonus?: number;
+    streakBonus?: number;
+    skillDailyBonus?: number;
+    totalXP?: number;
+    bonusInfo?: {
+        type: string | null;
+        details: string;
+    };
+    streak?: number;
+    streakBroken?: boolean;
     newBalance?: number;
     newLevel?: number;
     remaining?: number;
-    nextClaim?: string;
+    newAchievements?: any[];
 }
