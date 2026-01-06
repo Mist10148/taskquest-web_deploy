@@ -2,7 +2,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { motion } from "framer-motion";
-import { Settings as SettingsIcon, Sparkles, Zap, LogOut, ExternalLink, AlertTriangle, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, Sparkles, Zap, LogOut, ExternalLink, AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUpdateSettings, useResetProgress } from "@/hooks/useApi";
 import { toast } from "sonner";
@@ -27,18 +27,23 @@ const Settings = () => {
   const dbUser = user?.user || {};
   const [gamification, setGamification] = useState(dbUser.gamification_enabled ?? true);
   const [automation, setAutomation] = useState(dbUser.automation_enabled ?? true);
+  const [autoDelete, setAutoDelete] = useState(dbUser.auto_delete_old_lists ?? true);
   const [confirmText, setConfirmText] = useState("");
 
   const handleToggle = async (key: string, value: boolean) => {
     if (key === 'gamification') setGamification(value);
-    else setAutomation(value);
-    
+    else if (key === 'automation') setAutomation(value);
+    else if (key === 'autoDelete') setAutoDelete(value);
+
     if (useMock) {
       toast.success('Settings updated!');
       return;
     }
     try {
-      await updateSettings.mutateAsync({ [key === 'gamification' ? 'gamification_enabled' : 'automation_enabled']: value });
+      const fieldName = key === 'gamification' ? 'gamification_enabled' :
+                        key === 'automation' ? 'automation_enabled' :
+                        'auto_delete_old_lists';
+      await updateSettings.mutateAsync({ [fieldName]: value });
       toast.success('Settings updated!');
       refresh();
     } catch {
@@ -115,6 +120,26 @@ const Settings = () => {
               <p className="text-xs sm:text-sm text-foreground-muted">Get deadline reminders</p>
             </div>
             <Switch checked={automation} onCheckedChange={(v) => handleToggle('automation', v)} />
+          </div>
+        </motion.div>
+
+        {/* Auto-Delete Settings */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }} className="rounded-xl bg-card border border-border p-4 sm:p-6 mb-4 sm:mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-10 w-10 rounded-lg bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+              <Trash2 className="h-5 w-5 text-orange-500" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="font-heading font-semibold">Auto-Delete</h2>
+              <p className="text-sm text-foreground-muted truncate">Automatically clean up old lists</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between py-3 border-t border-border gap-4">
+            <div className="min-w-0">
+              <p className="font-medium text-sm sm:text-base">Auto-Delete Old Lists</p>
+              <p className="text-xs sm:text-sm text-foreground-muted">Delete expired/completed lists after 5 days</p>
+            </div>
+            <Switch checked={autoDelete} onCheckedChange={(v) => handleToggle('autoDelete', v)} />
           </div>
         </motion.div>
 
