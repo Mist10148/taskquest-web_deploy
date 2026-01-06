@@ -913,7 +913,15 @@ const DinoGame = ({ onBack, onResult }: { onBack: () => void; onResult: (r: stri
         jump();
       }
     };
+
+    // Mobile touch controls - tap anywhere to jump
+    const handleTouchStart = (e: TouchEvent) => {
+      e.preventDefault();
+      jump();
+    };
+
     window.addEventListener("keydown", handleKeyDown);
+    canvas.addEventListener("touchstart", handleTouchStart);
 
     const gameLoop = setInterval(() => {
       const g = gameRef.current;
@@ -1036,6 +1044,7 @@ const DinoGame = ({ onBack, onResult }: { onBack: () => void; onResult: (r: stri
     return () => {
       clearInterval(gameLoop);
       window.removeEventListener("keydown", handleKeyDown);
+      canvas.removeEventListener("touchstart", handleTouchStart);
     };
   }, [gameState, jump, endGame]);
 

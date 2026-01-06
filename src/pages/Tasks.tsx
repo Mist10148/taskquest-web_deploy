@@ -3,7 +3,7 @@ import { TaskListCard, TaskItem } from "@/components/game/TaskComponents";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useState } from "react";
-import { Plus, Search, Filter, SortAsc, ArrowLeft, Loader2, AlertCircle, X, Check, Calendar, Trash2, Pencil, Scroll } from "lucide-react";
+import { Plus, Search, Filter, SortAsc, ArrowLeft, Loader2, AlertCircle, X, Check, Calendar, Trash2, Pencil, Scroll, Clock, CheckCircle2, ListTodo } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -62,6 +62,7 @@ const Tasks = () => {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState<"current" | "expired" | "completed">("current");
   const [sortBy, setSortBy] = useState("newest");
   
   // Create list state
@@ -113,6 +114,16 @@ const Tasks = () => {
       const isComplete = list.itemsTotal > 0 && list.itemsCompleted === list.itemsTotal;
       return statusFilter === 'completed' ? isComplete : !isComplete;
     })
+    .filter(list => {
+      const isComplete = list.itemsTotal > 0 && list.itemsCompleted === list.itemsTotal;
+      const now = new Date();
+      const isExpired = list.deadline && new Date(list.deadline) < now && !isComplete;
+
+      if (activeTab === 'completed') return isComplete;
+      if (activeTab === 'expired') return isExpired;
+      if (activeTab === 'current') return !isComplete && !isExpired;
+      return true;
+    })
     .sort((a, b) => {
       switch (sortBy) {
         case 'newest': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -120,7 +131,7 @@ const Tasks = () => {
         case 'name_asc': return a.name.localeCompare(b.name);
         case 'name_desc': return b.name.localeCompare(a.name);
         case 'priority': return (PRIORITY_ORDER[a.priority || ''] ?? 3) - (PRIORITY_ORDER[b.priority || ''] ?? 3);
-        case 'deadline': 
+        case 'deadline':
           if (!a.deadline && !b.deadline) return 0;
           if (!a.deadline) return 1;
           if (!b.deadline) return -1;
@@ -139,7 +150,7 @@ const Tasks = () => {
         priority: newListPriority !== 'none' ? newListPriority : undefined,
         deadline: newListDeadline || undefined,
       });
-      toast.success('🎉 Quest created! +25 XP');
+      // XP notification handled by hook
       setShowCreateList(false);
       setNewListName(""); setNewListDesc(""); setNewListCategory("none"); setNewListPriority("none"); setNewListDeadline("");
     } catch { toast.error('Failed to create'); }
@@ -180,7 +191,7 @@ const Tasks = () => {
     if (!newItemName.trim() || !selectedListId) return;
     try {
       await createItem.mutateAsync({ listId: selectedListId, name: newItemName.trim(), description: newItemDesc.trim() || undefined });
-      toast.success('✅ Task added! +10 XP');
+      // XP notification handled by hook
       setShowAddItem(false);
       setNewItemName(""); setNewItemDesc("");
     } catch { toast.error('Failed to add'); }
@@ -189,7 +200,7 @@ const Tasks = () => {
   const handleToggleItem = async (itemId: number) => {
     try {
       await toggleItem.mutateAsync(itemId);
-      toast.success('✨ +15 XP');
+      // XP notification handled by hook
     } catch { toast.error('Failed'); }
   };
 
@@ -569,7 +580,7 @@ const Tasks = () => {
   return (
     <DashboardLayout>
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-4 sm:px-0">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-heading font-bold flex items-center gap-2">
               <Scroll className="h-7 w-7 text-primary" />
@@ -580,6 +591,46 @@ const Tasks = () => {
           <Button variant="glow" onClick={() => setShowCreateList(true)} className="gap-2">
             <Plus className="h-4 w-4" /> Create Quest
           </Button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6 p-1 bg-background-secondary rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab("current")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
+              activeTab === "current"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-foreground-muted hover:text-foreground hover:bg-card/50"
+            )}
+          >
+            <ListTodo className="h-4 w-4" />
+            Current
+          </button>
+          <button
+            onClick={() => setActiveTab("expired")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
+              activeTab === "expired"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-foreground-muted hover:text-foreground hover:bg-card/50"
+            )}
+          >
+            <Clock className="h-4 w-4" />
+            Expired
+          </button>
+          <button
+            onClick={() => setActiveTab("completed")}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all",
+              activeTab === "completed"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-foreground-muted hover:text-foreground hover:bg-card/50"
+            )}
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Completed
+          </button>
         </div>
 
         {/* Search & Filters */}

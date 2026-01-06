@@ -43,7 +43,19 @@ const Dashboard = () => {
     try {
       const result = await claimDaily.mutateAsync();
       if (result.success) {
-        toast.success(`🎁 Daily reward claimed! +${result.xp} XP`);
+        // Build description with bonus breakdown
+        let description = '';
+        const bonusParts = [];
+        if (result.classBonus > 0) bonusParts.push(`+${result.classBonus} class`);
+        if (result.streakBonus > 0) bonusParts.push(`+${result.streakBonus} streak (${result.streak} days)`);
+        if (result.skillDailyBonus > 0) bonusParts.push(`+${result.skillDailyBonus} skill`);
+        if (bonusParts.length > 0) description = bonusParts.join(', ');
+        if (result.bonusInfo?.details) description = result.bonusInfo.details;
+        
+        toast.success(`🎁 Daily reward claimed! +${result.totalXP} XP`, {
+          description: description || undefined,
+          duration: 4000,
+        });
         setDailyClaimed(true);
       } else {
         toast.error(result.error || 'Already claimed today');
