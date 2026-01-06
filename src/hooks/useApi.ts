@@ -192,7 +192,22 @@ export function useUser() {
 export function useClaimDaily() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async () => { try { return await userApi.claimDaily(); } catch { return { success: true, totalXP: 100, baseXP: 100, classBonus: 0, streakBonus: 0, skillDailyBonus: 0, streak: 4 }; } },
+    mutationFn: async () => {
+      try {
+        return await userApi.claimDaily();
+      } catch {
+        return {
+          success: true,
+          baseXP: 100,
+          classBonus: 0,
+          streakBonus: 0,
+          skillDailyBonus: 0,
+          totalXP: 100,
+          streak: 4,
+          bonusInfo: { type: null, details: '' }
+        };
+      }
+    },
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ['user'] });
       // Toast handled in Dashboard.tsx with full breakdown
