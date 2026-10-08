@@ -320,7 +320,7 @@ Production frontend output is `dist/`. In production the Express server also ser
 
 ## 7. Architectural debt
 
-These items are listed in priority order. Each has a corresponding entry in [PRD.md](PRD.md#known-gaps-and-roadmap).
+These items are listed in priority order. Each has a corresponding entry in [PRD.md](PRD.md#11-known-gaps-and-roadmap).
 
 1. **Demo-mode fallback hides failures.** Auth, queries and mutations all fall back to mock data. Users cannot tell an outage from a working app, and writes during an outage are silently lost. The fix is to surface errors, and to show a dedicated logged-out state instead of `MOCK_USER`.
 2. **No route protection.** Any URL is reachable without login.

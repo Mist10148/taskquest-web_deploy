@@ -219,7 +219,7 @@ Templates:
 
 ## Database
 
-TaskQuest reads and writes a MySQL database that the Discord bot also uses. This repository does not contain the schema. It contains no `CREATE TABLE` statements and no seed data. To run the app against a fresh database you need the bot's schema, or a schema recreated from the column lists in [docs/API.md](docs/API.md#data-model).
+TaskQuest reads and writes a MySQL database that the Discord bot also uses. This repository does not contain the schema. It contains no `CREATE TABLE` statements and no seed data. To run the app against a fresh database you need the bot's schema, or a schema recreated from the column lists in [docs/API.md](docs/API.md#14-data-model).
 
 Tables used by the web app:
 
@@ -380,7 +380,7 @@ The response includes the raw error message. Check `DB_URL` or `DB_HOST`, `DB_US
 This is harmless. The `game_sessions.game_type` migration logs a note on any error. The login-time migration that adds `discord_username` and `discord_avatar` swallows its errors silently. On MySQL versions without `ADD COLUMN IF NOT EXISTS` it does nothing, so add those two columns to `users` by hand if they are missing.
 
 **Game canvases are cut off on a phone.**
-Dino Runner (600x200) and Space Invaders (500x400) use fixed sizes. Known issue, listed in [docs/PRD.md](docs/PRD.md#known-gaps-and-roadmap).
+Dino Runner (600x200) and Space Invaders (500x400) use fixed sizes. Known issue, listed in [docs/PRD.md](docs/PRD.md#11-known-gaps-and-roadmap).
 
 ---
 

@@ -4,7 +4,7 @@ This is the reference for every number that affects XP, levels, classes, skills,
 
 Sources: `server/gameData.js` (definitions), `server/gameLogic.js` (XP maths), `server/db.js` (ledger, daily claim, achievements), `server/index.js` (routes), and `src/pages/Games.tsx` (in-browser game rules).
 
-Where the documented intent and the implementation differ, this document describes the **implementation** and marks the difference with ⚠️. [SECURITY.md](../SECURITY.md) and [PRD.md](PRD.md#known-gaps-and-roadmap) track each one.
+Where the documented intent and the implementation differ, this document describes the **implementation** and marks the difference with ⚠️. [SECURITY.md](../SECURITY.md) and [PRD.md](PRD.md#11-known-gaps-and-roadmap) track each one.
 
 ---
 
